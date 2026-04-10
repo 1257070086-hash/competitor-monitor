@@ -661,10 +661,55 @@ async function init() {
 
   await fetchSources();
   await fetchArticles();
+
+  // 加载静态 AI 摘要快照（所有人都能看到，无需 API Key）
+  await loadSnapshotAiSummary();
+
   // 检测未分类账号，有则弹出分类面板
   const unclassified = getUnclassified();
   if (unclassified.length) {
     setTimeout(() => openClassifyModal(), 600);
+  }
+}
+
+// 加载 data-snapshot/ai-summary.json 并渲染到各公司卡片
+async function loadSnapshotAiSummary() {
+  try {
+    const r = await fetch(`${SNAPSHOT_BASE}/ai-summary.json`);
+    if (!r.ok) return; // 文件不存在时静默跳过
+    const data = await r.json();
+    const { generatedAt, summaries } = data;
+    if (!summaries) return;
+
+    // 格式化生成时间
+    const dateStr = generatedAt
+      ? new Date(generatedAt).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '';
+
+    Object.entries(summaries).forEach(([company, txt]) => {
+      if (!txt || txt === '暂无文章数据') return;
+      const el = document.getElementById(`ai-note-${company}`);
+      if (!el) return;
+      const formatted = txt
+        .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text);display:block;margin-top:8px;margin-bottom:2px">$1</strong>')
+        .replace(/\n/g, '<br>')
+        .replace(/^[•\-] (.+)/gm, '<span style="display:block;padding-left:10px">• $1</span>');
+      el.style.display = 'block';
+      el.dataset.raw = txt;
+      el.innerHTML = `
+        <span style="font-size:11px;color:var(--blue);font-weight:600;letter-spacing:.03em">✦ AI 情报摘要</span>
+        ${dateStr ? `<span style="font-size:10px;color:var(--text-3);margin-left:6px">· 更新于 ${dateStr}</span>` : ''}
+        <br>${formatted}`;
+    });
+
+    // 更新顶部状态栏提示
+    if (dateStr) {
+      const tip = document.getElementById('ai-tip');
+      if (tip) tip.textContent = `AI 摘要快照 · 更新于 ${dateStr} · 点击可重新生成`;
+    }
+  } catch(e) {
+    // ai-summary.json 不存在或解析失败，静默跳过（不影响页面其他功能）
+    console.log('AI 摘要快照未找到，如需展示请运行 export-snapshot.sh');
   }
 }
 
