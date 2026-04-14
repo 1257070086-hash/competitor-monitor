@@ -1327,7 +1327,12 @@ function renderArchive() {
     const enableCit = true;
 
     // 结构化渲染：把 **标题** 识别为分节标题，正文内 [N] 替换成内联引用角标
-    const raw = (r.content || '').trim();
+    // 先预处理：去掉 ###/#### 前缀，统一成 **标题** 格式；去掉 --- 分割线
+    const raw = (r.content || '').trim()
+      .replace(/^#{1,6}\s+/gm, '')       // 去掉 # ## ### #### 前缀
+      .replace(/^---+$/gm, '')            // 去掉分割线
+      .replace(/^\*{3}\s*/gm, '')        // 去掉 *** 分割线
+      .replace(/^\n{2,}/gm, '\n');       // 合并多余空行
     const parts = raw.split(/(?=^\*\*)/m);
     let bodyHTML = '';
     parts.forEach(part => {
@@ -1767,9 +1772,11 @@ function renderWithCitations(txt, articles, enableCitations) {
     return line + badge;
   });
   let html = processedLines.join('\n')
+    .replace(/^#{1,6}\s+/gm, '')         // 去掉残留 ### 标题前缀
+    .replace(/^---+$/gm, '')              // 去掉分割线
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\n/g, '<br>')
-    .replace(/^[•\-] (.+)/gm, '<span style="display:block;padding-left:10px">• $1</span>');
+    .replace(/^[•\*\-] (.+)/gm, '<span style="display:block;padding-left:10px">• $1</span>');
   return html;
 }
 
