@@ -661,12 +661,12 @@ async function loadSnapshotAiSummary() {
 
     const dateKey = generatedAt ? generatedAt.slice(0,10) : new Date().toISOString().slice(0,10);
 
-    // 将快照摘要写入 archive（当天无该公司记录时才写入）
+    // 始终覆盖写入：用最新快照替换当天同公司旧记录
+    // 同时传入对应公司的真实文章列表，供引用标注使用
     Object.entries(summaries).forEach(([company, txt]) => {
       if (!txt || txt === '暂无文章数据') return;
-      const records = loadArchive();
-      const exists = records.some(rec => rec.company === company && (rec.dateKey || rec.time?.slice(0,10)) === dateKey);
-      if (!exists) saveAiRecord(company, txt, dateKey, [], true);
+      const companyArticles = allArticles.filter(a => a.company === company);
+      saveAiRecord(company, txt, dateKey, companyArticles, true);
     });
 
     // 若当前在 archive 视图则立即刷新
