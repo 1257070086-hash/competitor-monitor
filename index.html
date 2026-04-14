@@ -187,6 +187,11 @@
     .archive-toolbar { display:flex;align-items:center;gap:10px;padding:14px 0 12px;border-bottom:1px solid var(--border);margin-bottom:16px; }
     .archive-toolbar-title { font-size:14px;font-weight:700;color:var(--text); }
     .archive-filter { padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:12px;cursor:pointer; }
+    .archive-period-toggle { display:flex;gap:2px;background:var(--surface-2);border-radius:7px;padding:2px; }
+    .arc-toggle-btn { padding:4px 14px;border-radius:5px;border:none;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--text-2);transition:all .15s; }
+    .arc-toggle-btn.active { background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1); }
+    #archive-weekly-frame { margin-top:4px; }
+    #archive-weekly-frame iframe { width:100%;height:calc(100vh - 170px);border:none;border-radius:10px;background:var(--surface); }
     .archive-list { display:flex;flex-direction:column;gap:20px; }
     .archive-card { background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;animation:fadeUp .2s ease both;border-left:3px solid var(--blue); }
     .archive-card-head { display:flex;align-items:center;gap:10px;margin-bottom:18px; }
@@ -522,7 +527,11 @@
     <div class="panel" id="panel-archive">
       <div class="archive-toolbar">
         <span class="archive-toolbar-title">AI 资讯摘要</span>
-        <div style="display:flex;gap:8px;margin-left:auto;align-items:center">
+        <div class="archive-period-toggle" style="margin-left:12px">
+          <button class="arc-toggle-btn active" id="arc-btn-daily" onclick="switchArchivePeriod('daily')">每日</button>
+          <button class="arc-toggle-btn" id="arc-btn-weekly" onclick="switchArchivePeriod('weekly')">每周</button>
+        </div>
+        <div id="archive-daily-filters" style="display:flex;gap:8px;margin-left:auto;align-items:center">
           <select class="archive-filter" id="archive-filter-date" onchange="renderArchive()">
             <option value="all">全部日期</option>
           </select>
@@ -532,6 +541,9 @@
         </div>
       </div>
       <div id="archive-list" class="archive-list"><div class="empty-state">暂无摘要，请等待每日自动更新</div></div>
+      <div id="archive-weekly-frame" style="display:none">
+        <iframe src="weekly-report/" title="每周周报" allowfullscreen></iframe>
+      </div>
     </div>
   </div>
 
@@ -1238,6 +1250,15 @@ function deleteArchiveRecord(id) {
   updateArchiveBadge();
   renderArchive();
 }
+function switchArchivePeriod(period) {
+  document.getElementById('arc-btn-daily').classList.toggle('active', period === 'daily');
+  document.getElementById('arc-btn-weekly').classList.toggle('active', period === 'weekly');
+  const isDaily = period === 'daily';
+  document.getElementById('archive-list').style.display = isDaily ? '' : 'none';
+  document.getElementById('archive-daily-filters').style.display = isDaily ? 'flex' : 'none';
+  document.getElementById('archive-weekly-frame').style.display = isDaily ? 'none' : 'block';
+}
+
 function renderArchive() {
   const list = document.getElementById('archive-list');
   if (!list) return;
