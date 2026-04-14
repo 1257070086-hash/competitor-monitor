@@ -141,22 +141,9 @@
     .kw-pill.on { background: var(--blue); border-color: var(--blue); color: #fff; }
     .result-count { margin-left: auto; font-size: 12px; color: var(--text-3); white-space: nowrap; }
 
-    /* ── AI KEY BAR ── */
-    .ai-bar {
-      margin: 12px 24px 0; padding: 10px 14px;
-      background: var(--surface); border-radius: var(--radius-sm); box-shadow: var(--shadow);
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-    }
-    .ai-bar-label { font-size: 12px; color: var(--text-2); font-weight: 500; white-space: nowrap; }
-    .ai-key-input {
-      flex: 1; min-width: 200px; padding: 6px 10px; border: 1px solid var(--border);
-      border-radius: 6px; font-size: 12px; color: var(--text); outline: none;
-      background: var(--surface-2); transition: all .15s;
-    }
-    .ai-key-input:focus { border-color: var(--blue); background: #fff; }
+    /* ── BTN-AI (archive toolbar) ── */
     .btn-ai { padding: 6px 12px; border-radius: 6px; background: var(--blue); color: #fff; font-size: 12px; font-weight: 500; border: none; cursor: pointer; transition: all .15s; white-space: nowrap; }
     .btn-ai:hover { background: #0077ed; }
-    .ai-tip { font-size: 11px; color: var(--text-3); }
 
     /* ── MAIN LAYOUT ── */
     .main-layout {
@@ -193,10 +180,6 @@
     .company-chart-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
     .company-wc { display: flex; flex-wrap: wrap; gap: 5px; padding: 4px; min-height: 120px; align-items: center; justify-content: center; }
     .company-ai-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
-    .company-ai-result { margin-top: 12px; padding: 12px 14px; border-radius: 8px; background: var(--blue-bg); font-size: 12px; color: #1a4a7a; line-height: 1.7; }
-    .btn-company-ai { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 8px; background: var(--blue); color: #fff; font-size: 13px; font-weight: 600; border: none; cursor: pointer; transition: all .15s; }
-    .btn-company-ai:hover { background: #0077ed; }
-    .btn-company-ai:disabled { opacity: .55; cursor: default; }
     @media (max-width: 860px) { .company-bottom-grid { grid-template-columns: 1fr; } }
 
     /* ── 情报存档 ── */
@@ -496,15 +479,6 @@
   <div class="result-count" id="result-count"></div>
 </div>
 
-<!-- AI KEY BAR -->
-<div class="ai-bar">
-  <span class="ai-bar-label">🤖 AI 摘要</span>
-  <input class="ai-key-input" id="ai-key" type="password" value="" placeholder="DeepSeek API Key（本地保存）" oninput="localStorage.setItem('cm_ai_key',this.value)">
-  <button class="btn-ai" id="btn-ai" onclick="triggerAiSummary()">
-    ✦ 一键生成全部情报摘要
-  </button>
-  <span class="ai-tip" id="ai-tip">含人事变动 · 行业资讯跨账号整合 · 基于 DeepSeek</span>
-</div>
 
 <!-- MAIN LAYOUT -->
 <div class="main-layout">
@@ -557,11 +531,10 @@
           <select class="archive-filter" id="archive-filter-company" onchange="onArchiveCompanyChange(this.value)">
             <option value="all">全部公司</option>
           </select>
-          <button class="btn-ai" style="padding:5px 12px;font-size:12px" onclick="saveCurrentBriefToArchive()">📌 存入今日情报</button>
           <button class="archive-clear-btn" onclick="clearArchive()">清空存档</button>
         </div>
       </div>
-      <div id="archive-list" class="archive-list"><div class="empty-state">暂无存档，点击「存入今日情报」手动保存当日生成的摘要</div></div>
+      <div id="archive-list" class="archive-list"><div class="empty-state">暂无摘要，请等待每日自动更新</div></div>
     </div>
   </div>
 
@@ -655,10 +628,6 @@ const usingSnapshot = true; // 固定为快照模式
 
 // ═══════════════ INIT ═══════════════
 async function init() {
-  // 恢复上次保存的 API Key
-  const savedKey = localStorage.getItem('cm_ai_key');
-  if (savedKey) document.getElementById('ai-key').value = savedKey;
-
   await fetchSources();
   await fetchArticles();
 
@@ -672,43 +641,28 @@ async function init() {
   }
 }
 
-// 加载 data-snapshot/ai-summary.json 并渲染到各公司卡片
+// 加载 data-snapshot/ai-summary.json 写入 archive（AI 资讯摘要 Tab 展示）
 async function loadSnapshotAiSummary() {
   try {
     const r = await fetch(`${SNAPSHOT_BASE}/ai-summary.json`);
-    if (!r.ok) return; // 文件不存在时静默跳过
+    if (!r.ok) return;
     const data = await r.json();
     const { generatedAt, summaries } = data;
     if (!summaries) return;
 
-    // 格式化生成时间
-    const dateStr = generatedAt
-      ? new Date(generatedAt).toLocaleString('zh-CN', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
-      : '';
+    const dateKey = generatedAt ? generatedAt.slice(0,10) : new Date().toISOString().slice(0,10);
 
+    // 将快照摘要写入 archive（当天无该公司记录时才写入）
     Object.entries(summaries).forEach(([company, txt]) => {
       if (!txt || txt === '暂无文章数据') return;
-      const el = document.getElementById(`ai-note-${company}`);
-      if (!el) return;
-      const formatted = txt
-        .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text);display:block;margin-top:8px;margin-bottom:2px">$1</strong>')
-        .replace(/\n/g, '<br>')
-        .replace(/^[•\-] (.+)/gm, '<span style="display:block;padding-left:10px">• $1</span>');
-      el.style.display = 'block';
-      el.dataset.raw = txt;
-      el.innerHTML = `
-        <span style="font-size:11px;color:var(--blue);font-weight:600;letter-spacing:.03em">✦ AI 情报摘要</span>
-        ${dateStr ? `<span style="font-size:10px;color:var(--text-3);margin-left:6px">· 更新于 ${dateStr}</span>` : ''}
-        <br>${formatted}`;
+      const records = loadArchive();
+      const exists = records.some(rec => rec.company === company && (rec.dateKey || rec.time?.slice(0,10)) === dateKey);
+      if (!exists) saveAiRecord(company, txt, dateKey, [], true);
     });
 
-    // 更新顶部状态栏提示
-    if (dateStr) {
-      const tip = document.getElementById('ai-tip');
-      if (tip) tip.textContent = `AI 摘要快照 · 更新于 ${dateStr} · 点击可重新生成`;
-    }
+    // 若当前在 archive 视图则立即刷新
+    if (curView === 'archive') renderArchive();
   } catch(e) {
-    // ai-summary.json 不存在或解析失败，静默跳过（不影响页面其他功能）
     console.log('AI 摘要快照未找到，如需展示请运行 export-snapshot.sh');
   }
 }
@@ -1156,13 +1110,6 @@ function renderCompanyDetail(company) {
         <div class="company-wc" id="company-wc"></div>
       </div>
     </div>
-    <div class="company-ai-card">
-      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <button class="btn-company-ai" id="btn-company-ai" onclick="genAiCompany('${company}')">✦ 生成 AI 深度分析</button>
-        <span style="font-size:12px;color:var(--text-3)">招聘动态 · 人事变动 · 战略重点 · 快手启示</span>
-      </div>
-      <div id="company-ai-result" class="company-ai-result" style="display:none"></div>
-    </div>
   </div>`;
 }
 
@@ -1242,7 +1189,6 @@ function briefCard(company) {
       <div class="bc-section-title">高频词</div>
       <div class="kw-tags">${kwHTML||'<span class="bc-empty">暂无</span>'}</div>
     </div>
-    <div id="ai-note-${company}" class="ai-result" style="display:none"></div>
   </div>`;
 }
 
@@ -1282,47 +1228,6 @@ function saveAiRecord(company, txt, dateKey, articles, silent) {
 }
 function updateArchiveBadge() {
   // badge 不再显示数字，保留函数以兼容旧调用
-}
-// 手动存入今日情报：把所有已生成的 AI 结果按公司保存一条
-function saveCurrentBriefToArchive() {
-  const today = new Date().toISOString().slice(0,10);
-  const records = loadArchive();
-
-  // 收集所有待存的公司+内容
-  const toSave = [];
-  Object.keys(COMPANY_GROUPS).forEach(company => {
-    const el = document.getElementById(`ai-note-${company}`);
-    if (el && el.style.display !== 'none' && el.textContent.trim()) {
-      const txt = el.dataset.raw || el.innerText || el.textContent;
-      const refs = el.dataset.refsJson ? JSON.parse(el.dataset.refsJson) : [];
-      if (txt && txt.trim()) toSave.push({ company, txt, refs });
-    }
-  });
-  const detailEl = document.getElementById('company-ai-result');
-  if (detailEl && detailEl.style.display !== 'none' && detailEl.textContent.trim()) {
-    const company = curCompany !== 'all' ? curCompany : '其他';
-    const txt = detailEl.dataset.raw || detailEl.innerText || detailEl.textContent;
-    const refs = detailEl.dataset.refsJson ? JSON.parse(detailEl.dataset.refsJson) : [];
-    if (txt && txt.trim()) toSave.push({ company, txt, refs });
-  }
-
-  if (toSave.length === 0) {
-    alert('当前页面没有已生成的 AI 摘要，请先点击生成然后再存入。');
-    return;
-  }
-
-  // 检查是否有任何公司当天已有存档，只弹一次确认
-  const hasDups = toSave.some(({ company }) =>
-    records.some(r => r.company === company && (r.dateKey || r.time?.slice(0,10)) === today)
-  );
-  let overwrite = false;
-  if (hasDups) {
-    overwrite = confirm(`今日（${today}）部分公司已有存档，是否覆盖？\n\n确定 → 全部覆盖\n取消 → 保留旧版本（追加新版本）`);
-  }
-
-  toSave.forEach(({ company, txt, refs }) => saveAiRecord(company, txt, today, refs, overwrite ? true : false));
-  alert(`已存入 ${toSave.length} 条情报到「${today}」`);
-  renderArchive();
 }
 function clearArchive() {
   if (!confirm('确定清空全部存档？此操作不可撤销。')) return;
@@ -1376,7 +1281,7 @@ function renderArchive() {
   if (filterDate !== 'all') records = records.filter(r => (r.dateKey || r.time?.slice(0,10)) === filterDate);
 
   if (!records.length) {
-    list.innerHTML = '<div class="empty-state">暂无存档，点击「存入今日情报」手动保存当日生成的摘要</div>';
+    list.innerHTML = '<div class="empty-state">暂无摘要，请等待每日自动更新</div>';
     return;
   }
 
@@ -1492,83 +1397,6 @@ function renderCompanyTrendChart(company) {
     const c=wcColors[i%wcColors.length];
     return `<span style="font-size:${size}px;color:${c};font-weight:${scale>.6?700:400};opacity:${0.55+scale*0.45};padding:1px 4px;cursor:default" title="${n}次">${w}</span>`;
   }).join('');
-}
-
-// 单公司 AI 深度分析（直接调用，结果写入详情页 #company-ai-result）
-async function genAiCompany(company) {
-  const btn = document.getElementById('btn-company-ai');
-  const resultEl = document.getElementById('company-ai-result');
-  if (!btn || !resultEl) return;
-
-  const key = document.getElementById('ai-key').value.trim();
-  if (!key) { resultEl.style.display='block'; resultEl.textContent='请先在顶部填入 API Key'; return; }
-
-  btn.disabled = true;
-  btn.textContent = '⏳ 分析中…';
-  resultEl.style.display = 'block';
-  resultEl.innerHTML = '<span style="color:var(--text-3);font-size:12px">⏳ DeepSeek 分析中…</span>';
-
-  const arts = allArticles.filter(a=>a.company===company).slice(0,50);
-  if (!arts.length) { resultEl.textContent='暂无文章数据'; btn.disabled=false; btn.textContent='✦ 生成 AI 深度分析'; return; }
-
-  // 全局统一编号（所有文章一起编号，行业资讯接在后面）
-  const COMPANY_ALIASES = {
-    '字节跳动': ['字节跳动','字节','跳动','抖音','今日头条','ByteDance'],
-    '小红书':   ['小红书','RED','RedNote'],
-    '美团':     ['美团'],
-    '阿里':     ['阿里巴巴','阿里','蚂蚁','淘天','Alibaba'],
-    '腾讯':     ['腾讯','微信','Tencent'],
-    '行业资讯': [],
-  };
-  const aliases = COMPANY_ALIASES[company] || [company];
-  const industryRelatedArts = company !== '行业资讯'
-    ? allArticles.filter(a => a.company==='行业资讯' && aliases.some(al=>a.title.includes(al))).slice(0,15)
-    : [];
-  // orderedArts 按分组遍历顺序收集，保证与 AI 看到的编号严格一致
-  let globalIdx = 1;
-  const grouped = {};
-  arts.forEach(a => { if (!grouped[a.authorName]) grouped[a.authorName]=[]; grouped[a.authorName].push(a); });
-  const orderedArts = [];
-  const titlesByAccount = Object.entries(grouped)
-    .map(([name, artList]) => `【${name}】\n${artList.map(a => { orderedArts.push(a); return `${globalIdx++}. ${a.title}`; }).join('\n')}`)
-    .join('\n\n');
-  const orderedIndustryArts = [];
-  const industryNote = industryRelatedArts.length
-    ? `\n\n【行业资讯账号关于「${company}」的报道，请重点提取人事变动整合进"人事变动"一节】：\n${industryRelatedArts.map(a => { orderedIndustryArts.push(a); return `${globalIdx++}. 《${a.authorName}》 ${a.title}`; }).join('\n')}`
-    : '';
-  const finalRefArts = [...orderedArts, ...orderedIndustryArts];
-
-  try {
-    const resp = await fetch(`${AI_BASE}/chat/completions`, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json','Authorization':`Bearer ${key}`},
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          {role:'system', content:'你是快手雇主品牌团队的竞对情报分析师。分析各公司旗下多个公众号的近期文章，提炼关键情报。输出语言简洁有力，每句话信息密度高，不废话。'},
-          {role:'user', content: company === '行业资讯'
-            ? `请分析以下互联网行业资讯账号的近期文章，按以下结构输出：\n\n**本周热点事件**\n（3-5条，列出本周互联网行业最重要的事件/动态，每条一句）\n\n**各大厂动向速览**\n（按公司分组，每家1-2句核心动态，只写有实质内容的公司）\n\n**最新技术进展**\n（2-3条，提炼各大厂近期发布的重要技术/产品进展，AI、基础设施、工程平台等优先）\n\n**行业趋势洞察**\n（2-3条，提炼这批文章反映出的行业中长期趋势）\n\n**对快手的启示**\n（从行业动态中提炼1-2条对快手雇主品牌最有价值的启示）\n\n---\n各账号文章如下：\n${titlesByAccount}`
-            : `请分析「${company}」旗下各公众号的近期文章，按以下结构输出：\n\n**招聘动态**\n（结合各账号招聘文章，总结该公司最近的招聘方向、岗位重点、规模变化，2-3句）\n\n**人事变动**\n（如检测到高管任免、团队调整等信息则列出；否则写"未检测到明显人事变动"）\n\n**最新技术进展**\n（1-2条，提炼该公司近期发布的重要技术/产品进展；无相关内容则写"暂未检测到明显技术发布"）\n\n**近期战略重点**\n（3条，每条一句）\n- \n- \n- \n\n**对快手的启示**\n（快手雇主品牌可以从中借鉴或差异化的一句话建议）\n\n---\n各账号文章如下：\n${titlesByAccount}${industryNote}`},
-        ],
-        max_tokens: 900, temperature: 0.6,
-      })
-    });
-    const d = await resp.json();
-    if (d.error) throw new Error(d.error.message);
-    const txt = d.choices?.[0]?.message?.content || '分析失败';
-    // 格式化并渲染（把 [N] 替换成内联链接）
-    resultEl.dataset.raw = txt; // 保存原始 AI 文本，供手动存档使用
-    resultEl.dataset.refsJson = JSON.stringify(finalRefArts.map(a=>({title:a.title,url:a.url,authorName:a.authorName}))); // 保存引用文章
-    const formatted = renderWithCitations(txt, finalRefArts, company !== '行业资讯');
-    resultEl.innerHTML = `<span style="font-size:11px;color:var(--blue);font-weight:600;letter-spacing:.03em">✦ AI 深度分析</span><br>${formatted}`;
-    // 自动同步到情报存档，带上引用文章
-    saveAiRecord(company, txt, new Date().toISOString().slice(0,10), finalRefArts, true);
-  } catch(e) {
-    console.error('genAiCompany error', e);
-    if (resultEl) resultEl.innerHTML = `<span style="color:var(--red)">请求失败：${e.message}</span>`;
-  }
-  btn.disabled = false;
-  btn.textContent = '✦ 重新生成 AI 分析';
 }
 
 // 单公司视图：各账号子卡片网格（保留兼容旧调用）
@@ -1925,114 +1753,6 @@ function renderWithCitations(txt, articles, enableCitations) {
     .replace(/\n/g, '<br>')
     .replace(/^[•\-] (.+)/gm, '<span style="display:block;padding-left:10px">• $1</span>');
   return html;
-}
-
-function applyAiToCard(company, txt) {
-  const el = document.getElementById(`ai-note-${company}`);
-  if (!el) return;
-
-  // 解析各 section
-  const sections = {};
-  let cur = null;
-  txt.split('\n').forEach(line => {
-    const m = line.match(/^\*\*(.+?)\*\*/);
-    if (m) { cur = m[1]; sections[cur] = []; }
-    else if (cur && line.trim()) sections[cur].push(line.trim());
-  });
-
-  // 将 AI 结论注入对应卡片 section 的上方（如有内容）
-  // 也统一显示在 ai-result 区块里
-  const formatted = txt
-    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--text);display:block;margin-top:8px;margin-bottom:2px">$1</strong>')
-    .replace(/\n/g, '<br>')
-    .replace(/^[•\-] (.+)/gm, '<span style="display:block;padding-left:10px">• $1</span>');
-  el.style.display = 'block';
-  el.dataset.raw = txt; // 保存原始文本，供手动存档时使用
-  el.innerHTML = `<span style="font-size:11px;color:var(--blue);font-weight:600;letter-spacing:.03em">✦ AI 深度摘要</span><br>${formatted}`;
-}
-
-async function genAi(company) {
-  const key = document.getElementById('ai-key').value.trim();
-  const el  = document.getElementById(`ai-note-${company}`);
-  if (!el) return;
-  el.style.display = 'block';
-  if (!key) { el.textContent = '请先填入 API Key'; return; }
-
-  const arts = allArticles.filter(a=>a.company===company).slice(0,50);
-  if (!arts.length) { el.textContent = '暂无文章数据'; return; }
-
-  // 全局统一编号
-  const COMPANY_ALIASES = {
-    '字节跳动': ['字节跳动','字节','跳动','抖音','今日头条','ByteDance'],
-    '小红书':   ['小红书','RED','RedNote'],
-    '美团':     ['美团'],
-    '阿里':     ['阿里巴巴','阿里','蚂蚁','淘天','Alibaba'],
-    '腾讯':     ['腾讯','微信','Tencent'],
-    '行业资讯': [],
-  };
-  const aliases = COMPANY_ALIASES[company] || [company];
-  const industryRelatedArts = company !== '行业资讯'
-    ? allArticles.filter(a => a.company === '行业资讯' && aliases.some(al => a.title.includes(al))).slice(0,15)
-    : [];
-  const refArts = [...arts, ...industryRelatedArts];
-  let globalIdx = 1;
-  const grouped = {};
-  arts.forEach(a => { if (!grouped[a.authorName]) grouped[a.authorName]=[]; grouped[a.authorName].push(a); });
-  // orderedArts 按分组遍历顺序收集，保证与 AI 看到的编号严格一致
-  const orderedArts = [];
-  const titlesByAccount = Object.entries(grouped)
-    .map(([name, artList]) => `【${name}】\n${artList.map(a => { orderedArts.push(a); return `${globalIdx++}. ${a.title}`; }).join('\n')}`)
-    .join('\n\n');
-  const orderedIndustryArts = [];
-  const industryPersonNote = industryRelatedArts.length
-    ? `\n\n【以下是行业资讯账号关于「${company}」的报道】：\n${industryRelatedArts.map(a => { orderedIndustryArts.push(a); return `${globalIdx++}. 《${a.authorName}》 ${a.title}`; }).join('\n')}`
-    : '';
-  // 引用文章顺序与 AI 编号严格一致
-  const finalRefArts = [...orderedArts, ...orderedIndustryArts];
-
-  el.innerHTML = '<span style="color:var(--text-3);font-size:12px">⏳ DeepSeek 分析中…</span>';
-  try {
-    const resp = await fetch(`${AI_BASE}/chat/completions`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${key}`},
-      body:JSON.stringify({
-        model:'deepseek-chat',
-        messages:[
-          {role:'system',content:'你是快手雇主品牌团队的竞对情报分析师。分析各公司旗下多个公众号的近期文章，提炼关键情报。输出语言简洁有力，每句话信息密度高，不废话。'},
-          {role:'user',content: company === '行业资讯'
-            ? `请分析以下互联网行业资讯账号的近期文章，按以下结构输出：\n\n**本周热点事件**\n（3-5条，列出本周互联网行业最重要的事件/动态，每条一句）\n\n**各大厂动向速览**\n（按公司分组，每家1-2句核心动态，只写有实质内容的公司）\n\n**最新技术进展**\n（2-3条，提炼各大厂近期发布的重要技术/产品进展，AI、基础设施、工程平台等优先）\n\n**行业趋势洞察**\n（2-3条，提炼这批文章反映出的行业中长期趋势）\n\n**对快手的启示**\n（从行业动态中提炼1-2条对快手雇主品牌最有价值的启示）\n\n---\n各账号文章如下：\n${titlesByAccount}`
-            : `请分析「${company}」旗下各公众号的近期文章，按以下结构输出：\n\n**招聘动态**\n（结合各账号招聘文章，总结该公司最近的招聘方向、岗位重点、规模变化，2-3句）\n\n**人事变动**\n（如检测到高管任免、团队调整等信息则列出；否则写"未检测到明显人事变动"）\n\n**最新技术进展**\n（1-2条，提炼该公司近期发布的重要技术/产品进展；无相关内容则写"暂未检测到明显技术发布"）\n\n**近期战略重点**\n（3条，每条一句）\n- \n- \n- \n\n**对快手的启示**\n（快手雇主品牌可以从中借鉴或差异化的一句话建议）\n\n---\n各账号文章如下：\n${titlesByAccount}${industryPersonNote}`},
-        ],
-        max_tokens:900, temperature:0.6,
-      })
-    });
-    const d = await resp.json();
-    if (d.error) throw new Error(d.error.message);
-    const txt = d.choices?.[0]?.message?.content||'分析失败';
-    applyAiToCard(company, txt);
-    // 保存引用文章到 el.dataset，供手动存档用
-    el.dataset.refsJson = JSON.stringify(refArts.map(a=>({title:a.title,url:a.url,authorName:a.authorName})));
-    // 自动同步到情报存档，带上引用文章
-    saveAiRecord(company, txt, new Date().toISOString().slice(0,10), refArts, true);
-  } catch(e) { el.innerHTML = `<span style="color:var(--red)">请求失败：${e.message}</span>`; }
-}
-
-async function triggerAiSummary() {
-  if (curView!=='brief') switchView('brief');
-  const companies = curCompany==='all' ? Object.keys(COMPANY_GROUPS) : [curCompany];
-  const btn = document.getElementById('btn-ai');
-  const tip = document.getElementById('ai-tip');
-  btn.disabled = true;
-  btn.textContent = `⏳ 分析中 0/${companies.length}…`;
-  let done = 0;
-  await Promise.all(companies.map(async c => {
-    await genAi(c);
-    done++;
-    btn.textContent = `⏳ 分析中 ${done}/${companies.length}…`;
-  }));
-  btn.disabled = false;
-  btn.textContent = '✦ 重新生成全部情报摘要';
-  tip.textContent = `已完成 ${done} 家 · 含行业资讯跨账号人事整合`;
 }
 
 // ═══════════════ REFRESH ═══════════════
