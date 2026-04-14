@@ -1323,7 +1323,8 @@ function renderArchive() {
   const cardHTML = r => {
     const clr = color(r.company);
     const timeStr = new Date(r.time).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
-    const refArticles = r.articles || [];
+    // 行业资讯需要全量文章做跨公司引用匹配；其他公司只用本公司文章
+    const refArticles = r.company === '行业资讯' ? allArticles : (r.articles || []);
     const enableCit = true;
 
     // 结构化渲染：把 **标题** 识别为分节标题，正文内 [N] 替换成内联引用角标
@@ -1734,22 +1735,47 @@ function buildChart(id, type, data, options) {
 
 // ═══════════════ AI ═══════════════
 // 句子 → 文章关键词反查，返回最匹配的文章（无需 AI 标编号）
+// 支持公司感知：如果句子里含有公司名，优先在该公司的文章里匹配
 function findBestMatchArt(sentence, articles) {
   if (!articles || !articles.length) return null;
-  // 提取句子里长度>=2的汉字词段
-  const words = sentence.match(/[\u4e00-\u9fa5A-Za-z]{2,}/g) || [];
+  // 去掉 **xxx** 加粗标记再提词，避免标记符干扰
+  const cleanSentence = sentence.replace(/\*\*(.+?)\*\*/g, '$1');
+  // 提取句子里长度>=2的词段
+  const words = cleanSentence.match(/[\u4e00-\u9fa5A-Za-z]{2,}/g) || [];
   if (!words.length) return null;
+
+  // 检测句子里是否明确提到了某公司，用于缩小候选范围
+  const COMPANY_KEYWORDS = {
+    '字节跳动': ['字节跳动','字节','抖音','今日头条','ByteDance'],
+    '腾讯':     ['腾讯','微信','Tencent','WXG'],
+    '阿里':     ['阿里巴巴','阿里','蚂蚁','淘天','Alibaba'],
+    '美团':     ['美团','滴滴'],
+    '小红书':   ['小红书','RED','RedNote'],
+  };
+  let candidateArts = articles;
+  for (const [co, aliases] of Object.entries(COMPANY_KEYWORDS)) {
+    if (aliases.some(alias => cleanSentence.includes(alias))) {
+      const coArts = articles.filter(a => a.company === co);
+      if (coArts.length > 0) { candidateArts = coArts; break; }
+    }
+  }
+
+  // 过滤掉通用高频词，避免误匹配
+  const COMMON_STOP = new Set(['AI','的','了','和','与','在','是','为','从','到','等','中','对','将','及','有','以','其','该','可','已','更','新','大','全','化','性','力','度','量','型','用','能','技术','平台','系统','应用','模型','数据','产品','业务','战略','方向','核心','重点','推进','持续','深度','加强','优化','发展','建设','创新','合作']);
+  const filteredWords = words.filter(w => !COMMON_STOP.has(w) && w.length >= 2);
+  if (!filteredWords.length) return null;
+
   let best = null, bestScore = 0;
-  articles.forEach(art => {
+  candidateArts.forEach(art => {
     if (!art || !art.title) return;
     let score = 0;
-    words.forEach(w => {
-      if (w.length >= 2 && art.title.includes(w)) score += w.length; // 更长的词权重更高
+    filteredWords.forEach(w => {
+      if (art.title.includes(w)) score += w.length * w.length; // 长词平方加权，大幅提升精确匹配
     });
     if (score > bestScore) { bestScore = score; best = art; }
   });
-  // 至少命中 4 个字符才认为匹配
-  return bestScore >= 4 ? best : null;
+  // 提高阈值：至少命中一个 3+ 字的词（即 score >= 9）才认为匹配
+  return bestScore >= 9 ? best : null;
 }
 
 // 把 AI 输出格式化，并为每行结论自动匹配引用角标
