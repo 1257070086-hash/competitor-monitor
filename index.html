@@ -1324,7 +1324,7 @@ function renderArchive() {
     const clr = color(r.company);
     const timeStr = new Date(r.time).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
     const refArticles = r.articles || [];
-    const enableCit = r.company !== '行业资讯';
+    const enableCit = true;
 
     // 结构化渲染：把 **标题** 识别为分节标题，正文内 [N] 替换成内联引用角标
     const raw = (r.content || '').trim();

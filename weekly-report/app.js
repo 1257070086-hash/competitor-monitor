@@ -13,6 +13,15 @@
     btn.title = collapsed ? '展开目录' : '折叠目录';
   };
 
+  // 默认折叠侧边栏（嵌入 iframe 时避免遮挡内容）
+  (function initCollapsed() {
+    const sidebar = document.getElementById('sidebar');
+    const btn = document.getElementById('sidebar-toggle');
+    document.body.classList.add('sidebar-collapsed');
+    if (sidebar) sidebar.classList.add('collapsed');
+    if (btn) { btn.textContent = '›'; btn.title = '展开目录'; }
+  })();
+
   // ── 左侧目录渲染 ──────────────────────────────────────
   const REPORTS = [
     { week: '2026 W15', range: '4.6 — 4.13', file: 'index.html', active: true },
