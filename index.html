@@ -191,7 +191,7 @@
     .arc-toggle-btn { padding:4px 14px;border-radius:5px;border:none;font-size:12px;font-weight:500;cursor:pointer;background:transparent;color:var(--text-2);transition:all .15s; }
     .arc-toggle-btn.active { background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.1); }
     #archive-weekly-frame { margin-top:4px; }
-    #archive-weekly-frame iframe { width:100%;height:calc(100vh - 170px);border:none;border-radius:10px;background:var(--surface); }
+    #archive-weekly-frame iframe { width:100%;height:600px;min-height:400px;border:none;border-radius:10px;background:var(--surface); }
     .archive-list { display:flex;flex-direction:column;gap:20px; }
     .archive-card { background:var(--surface);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;animation:fadeUp .2s ease both;border-left:3px solid var(--blue); }
     .archive-card-head { display:flex;align-items:center;gap:10px;margin-bottom:18px; }
@@ -1250,13 +1250,24 @@ function deleteArchiveRecord(id) {
   updateArchiveBadge();
   renderArchive();
 }
+// codeflicker-fix: UI-Issue-002/h2zsaci1b5xvmg2s9gow
 function switchArchivePeriod(period) {
   document.getElementById('arc-btn-daily').classList.toggle('active', period === 'daily');
   document.getElementById('arc-btn-weekly').classList.toggle('active', period === 'weekly');
   const isDaily = period === 'daily';
   document.getElementById('archive-list').style.display = isDaily ? '' : 'none';
+  // codeflicker-fix: UI-Issue-004/h2zsaci1b5xvmg2s9gow
   document.getElementById('archive-daily-filters').style.display = isDaily ? 'flex' : 'none';
-  document.getElementById('archive-weekly-frame').style.display = isDaily ? 'none' : 'block';
+  const frame = document.getElementById('archive-weekly-frame');
+  frame.style.display = isDaily ? 'none' : 'block';
+  if (!isDaily) {
+    // 动态计算 iframe 高度：视口高度 - frame 元素顶部距离 - 底部留白
+    const iframe = frame.querySelector('iframe');
+    if (iframe) {
+      const top = frame.getBoundingClientRect().top;
+      iframe.style.height = Math.max(400, window.innerHeight - top - 24) + 'px';
+    }
+  }
 }
 
 function renderArchive() {
