@@ -223,6 +223,6 @@
   app.innerHTML += `
     <div class="footer">
       <p>生成时间：${now.toLocaleDateString('zh-CN')}</p>
-      <p>快手雇主品牌团队 · 丁丁</p>
+      <p>快手企业文化中心 · 丁丁</p>
     </div>`;
 })();
