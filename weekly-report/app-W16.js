@@ -1,4 +1,4 @@
-// 渲染周报页面
+// 渲染周报页面 - W16 版本
 (function () {
   const data = window.REPORT_DATA;
   const app = document.getElementById('app');
@@ -15,8 +15,8 @@
 
   // ── 左侧目录渲染 ──────────────────────────────────────
   const REPORTS = [
-    { week: '2026 W16', range: '4.14 — 4.19', file: 'report-W16.html', active: false },
-    { week: '2026 W15', range: '4.6 — 4.13', file: 'index.html', active: true },
+    { week: '2026 W16', range: '4.14 — 4.19', file: 'report-W16.html', active: true },
+    { week: '2026 W15', range: '4.6 — 4.13', file: 'index.html', active: false },
   ];
 
   const SECTIONS = [
@@ -105,7 +105,6 @@
   // 所有 section（包括启示）统一用品牌色标签背景，文字为黑色
   function renderSection(title, sectionData, brandColor) {
     const isInsight = sectionData.isInsight;
-    // 只设背景色和边框，文字颜色由 CSS 控制为黑色
     const titleStyle = `background:${brandColor}18; border:1px solid ${brandColor}38`;
     return `
       <div class="card-section${isInsight ? ' insight' : ''}">
@@ -136,7 +135,6 @@
     ...data.companies.map(co => ({ label: co.name, color: co.color, anchor: `section-${co.id}` })),
   ].map(btn => {
     const hex = btn.color;
-    // 把品牌色转成很浅的背景（20% 透明度模拟）
     return `<a href="javascript:void(0)" class="company-nav-btn"
       onclick="smoothTo('${btn.anchor}', null)"
       onmouseenter="this.style.color='${hex}';this.style.borderColor='${hex}';this.style.background='${hex}18'"
